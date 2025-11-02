@@ -1,0 +1,26 @@
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cs,csproj}]
+indent_size = 4
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# C# стиль
+[*.cs]
+# Nullability
+dotnet_diagnostic.CS8618.severity = error
+
+# StyleCop
+dotnet_diagnostic.SA1633.severity = none
+dotnet_diagnostic.SA1200.severity = none
