@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.log
+
+# Rider / VS
+.idea/
+.vs/
+*.DotSettings.user
+
+# Secrets
+.env
+*.key
+*.pem
+secrets/
+
+# Test results
+TestResults/
+allure-results/
+allure-report/
+*.trx
+
+# NBomber
+reports/
+*.html
+
+# OS
+.DS_Store
+Thumbs.db
