@@ -1,41 +1,73 @@
+using LoanService.Repositories;
+using LoanService.Services;
+using Npgsql;
+using Prometheus;
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
+// PostgreSQL
+var connectionString = builder.Configuration.GetConnectionString("PostgreSQL")
+    ?? throw new InvalidOperationException("PostgreSQL connection string not found");
+
+builder.Services.AddNpgsqlDataSource(connectionString);
+
+// Services
+builder.Services.AddSingleton<IKafkaProducerService, KafkaProducerService>();
+builder.Services.AddScoped<ILoanRepository, LoanRepository>();
+
+// API
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Health checks
+builder.Services.AddHealthChecks()
+    .AddNpgSql(connectionString, name: "postgresql");
+
+Log.Information("Building application...");
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+Log.Information("Application built successfully");
+
+// Middleware
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseSerilogRequestLogging();
 
-var summaries = new[]
+// Prometheus metrics endpoint
+app.MapMetrics();
+
+// Health check endpoint
+app.MapHealthChecks("/health");
+
+app.MapControllers();
+
+Log.Information("Middleware configured");
+
+try
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
+    Log.Information("Starting LoanService on port {Port}", builder.Configuration["LOAN_SERVICE_PORT"] ?? "5001");
+    app.Run();
+}
+catch (Exception ex)
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
-app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+    Log.Fatal(ex, "Application startup failed");
+    throw;
+}
+finally
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    Log.CloseAndFlush();
 }
