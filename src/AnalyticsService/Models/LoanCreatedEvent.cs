@@ -1,4 +1,4 @@
-namespace LoanService.Models;
+namespace AnalyticsService.Models;
 
 /// <summary>
 /// Событие создания займа из Kafka
