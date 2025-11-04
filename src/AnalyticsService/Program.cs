@@ -5,14 +5,14 @@ using Npgsql;
 using Prometheus;
 using Serilog;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 // Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .CreateLogger();
 
-builder.Services.AddSerilog();
+builder.Host.UseSerilog();
 
 // PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("PostgreSQL")
@@ -23,7 +23,7 @@ builder.Services.AddNpgsqlDataSource(connectionString);
 // Repository
 builder.Services.AddScoped<IAnalyticsRepository, AnalyticsRepository>();
 
-// Worker
+// Kafka Consumer Worker
 builder.Services.AddHostedService<KafkaConsumerWorker>();
 
 // Health checks
@@ -31,17 +31,19 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString, name: "postgresql")
     .AddCheck<KafkaHealthCheck>("kafka");
 
-// Metrics server (для Prometheus scraping)
-var metricsPort = builder.Configuration.GetValue<int>("ANALYTICS_SERVICE_PORT", 5002);
-var metricServer = new Prometheus.KestrelMetricServer(port: metricsPort);
-metricServer.Start();
+var app = builder.Build();
 
-var host = builder.Build();
+// Middleware
+app.UseSerilogRequestLogging();
+
+// Endpoints
+app.MapHealthChecks("/health");
+app.MapMetrics();
 
 try
 {
-    Log.Information("Starting AnalyticsService on port {Port}", metricsPort);
-    await host.RunAsync();
+    Log.Information("Starting AnalyticsService on port 5002 with KafkaConsumerWorker");
+    await app.RunAsync();
 }
 catch (Exception ex)
 {
@@ -50,6 +52,5 @@ catch (Exception ex)
 }
 finally
 {
-    Log.CloseAndFlush();
-    metricServer.Stop();
+    await Log.CloseAndFlushAsync();
 }
