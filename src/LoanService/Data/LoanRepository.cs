@@ -29,7 +29,7 @@ public sealed class LoanRepository : ILoanRepository
         const string sql = """
             INSERT INTO loans (user_id, amount, status)
             VALUES (@UserId, @Amount, 'pending')
-            RETURNING id, user_id, amount, status, created_at
+            RETURNING id, user_id AS UserId, amount, status, created_at AS CreatedAt
             """;
 
         await using var connection = await _dataSource.OpenConnectionAsync(ct);

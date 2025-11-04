@@ -53,7 +53,7 @@ public class LoanServiceTests : IntegrationTestBase
         await AllureApi.Step("Проверка сохранения в БД", async () =>
         {
             var dbLoan = await QuerySingleOrDefaultAsync<LoanResponse>(
-                "SELECT id, user_id, amount, status, created_at FROM loans WHERE id = @Id",
+                "SELECT id, user_id AS UserId, amount, status, created_at AS CreatedAt FROM loans WHERE id = @Id",
                 new { loan.Id });
 
             dbLoan.Should().NotBeNull();

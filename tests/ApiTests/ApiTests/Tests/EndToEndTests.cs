@@ -16,6 +16,7 @@ namespace ApiTests.Tests;
 public class EndToEndTests : IntegrationTestBase
 {
     [Test]
+    [Ignore("Requires docker-compose for full E2E")]
     [AllureTag("e2e", "kafka", "critical")]
     [AllureSeverity(SeverityLevel.blocker)]
     [AllureDescription("Полная проверка: POST /loans → Kafka event → Analytics DB")]

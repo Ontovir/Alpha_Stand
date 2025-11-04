@@ -1,22 +1,21 @@
-using System.Data;
+using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Dapper;
 using Npgsql;
 using RestSharp;
 using Testcontainers.Kafka;
-using Testcontainers.PostgreSql;
 using Allure.NUnit.Attributes;
-using Confluent.Kafka;
 using Confluent.Kafka.Admin;
+using NUnit.Framework; 
 
 namespace ApiTests.Infrastructure;
 
 /// <summary>
-/// Базовый класс для интеграционных тестов с Testcontainers
+/// Базовый класс для интеграционных тестов
 /// </summary>
 [AllureParentSuite("Integration Tests")]
 public abstract class IntegrationTestBase
 {
-    protected PostgreSqlContainer PostgresContainer = null!;
     protected KafkaContainer KafkaContainer = null!;
     protected RestClient ApiClient = null!;
     protected string ConnectionString = null!;
@@ -24,21 +23,10 @@ public abstract class IntegrationTestBase
     [OneTimeSetUp]
     public async Task GlobalSetup()
     {
-        // PostgreSQL Container
-        PostgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .WithDatabase("loan_db")
-            .WithUsername("loan_user")
-            .WithPassword("loan_password")
-            .Build();
+        // ✅ Используем docker-compose PostgreSQL
+        ConnectionString = "Host=localhost;Port=5432;Database=loan_db;Username=loan_user;Password=loan_password";
 
-        await PostgresContainer.StartAsync();
-        ConnectionString = PostgresContainer.GetConnectionString();
-
-        // Инициализация БД (схема из init.sql)
-        await InitializeDatabaseAsync();
-
-        // Kafka Container
+        // Kafka Container (для E2E тестов)
         KafkaContainer = new KafkaBuilder()
             .WithImage("confluentinc/cp-kafka:7.8.0")
             .Build();
@@ -67,48 +55,18 @@ public abstract class IntegrationTestBase
         });
     }
 
+    [SetUp]
+    public async Task TestSetup()
+    {
+        // Очистка данных перед каждым тестом
+        await ExecuteAsync("TRUNCATE TABLE analytics_loans, loans RESTART IDENTITY CASCADE");
+    }
+
     [OneTimeTearDown]
     public async Task GlobalTeardown()
     {
-        await PostgresContainer.DisposeAsync();
         await KafkaContainer.DisposeAsync();
         ApiClient?.Dispose();
-    }
-
-    private async Task InitializeDatabaseAsync()
-    {
-        await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync();
-
-        // Создание таблиц (упрощённая версия init.sql)
-        await connection.ExecuteAsync("""
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                email TEXT NOT NULL UNIQUE,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS loans (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS analytics_loans (
-                id SERIAL PRIMARY KEY,
-                loan_id INTEGER NOT NULL UNIQUE,
-                processed_at TIMESTAMPTZ DEFAULT NOW()
-            );
-
-            -- Тестовые пользователи
-            INSERT INTO users (name, email) VALUES 
-                ('Test User 1', 'test1@example.com'),
-                ('Test User 2', 'test2@example.com')
-            ON CONFLICT (email) DO NOTHING;
-            """);
     }
 
     protected async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters = null)
